@@ -12,7 +12,7 @@ cmake ..
 make
 ```
 
-To generate the key you'll need to get your serial Number `<sn>`.
+To generate the key you'll need to get your serial Number `<sn>` which is viewable from the `Utility>System Info` menu.
 ```
 cd src
 ./riglol <sn> JNBE
