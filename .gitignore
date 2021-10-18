@@ -12,5 +12,6 @@ CTestTestfile.cmake
 _deps
 
 build/
+bin/
 
 # C ignore
