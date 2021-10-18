@@ -1,0 +1,14 @@
+struct riglol_device_option {
+	char *code;
+	char *description;
+};
+
+struct riglol_device {
+	char *name;
+	char *description;
+	char *notes;
+
+	size_t num_options;
+	struct riglol_device_option *options;
+};
+

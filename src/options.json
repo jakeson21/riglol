@@ -1,0 +1,86 @@
+[{
+		"name": "DP832b",
+		"description": "starting from v1.09",
+		"notes": "first character: F = official, B = trial",
+		"options": [
+			["F3PT", "Accuracy"],
+			["F6PT", "Analyzer and Monitor"],
+			["F6LT", "LAN"],
+			["FALT", "RS232"],
+			["FLLT", "Trigger"]
+		]
+	},
+	{
+		"name": "DP832a",
+		"description": "up to v1.06",
+		"notes": "first character: M = official, 5 = trial",
+		"options": [
+			["MWSS", "Trigger"],
+			["MWTB", "Accuracy"],
+			["MWTC", "LAN and RS232"],
+			["MWTE", "Analyzer and Monitor"]
+		]
+	},
+	{
+		"name": "DS1000z",
+		"description": "",
+		"notes": "",
+		"options": [
+			["DSAB", "Advanced Triggers"],
+			["DSAC", "Decoders"],
+			["DSAE", "24M Memory"],
+			["DSAJ", "Recorder"],
+			["DSBA", "500uV Vertical"],
+			["DSEA", "100MHz"],
+			["DSFR", "all options"]
+		]
+	},
+	{
+		"name": "DS2000",
+		"description": "",
+		"notes": "first character: D = official, V = trial",
+		"options": [
+			["DSAB", "Advanced Triggers"],
+			["DSAC", "I2C, SPI and RS232 Decoders"],
+			["DSEA", "CAN Decoder"],
+			["DSAE", "56M Memory"],
+			["DSAJ", "100MHz"],
+			["DSAS", "200MHz"],
+			["DSCA", "300MHz"],
+			["DSHH", "all options"]
+		]
+	},
+	{
+		"name": "DS4000",
+		"description": "",
+		"notes": "first character: D = official, V = trial",
+		"options": [
+			["DSHB", "RS232 Decoder"],
+			["DSHC", "SPI Decoder"],
+			["DSHE", "I2C Decoder"],
+			["DSHJ", "CAN Decoder"],
+			["DSHS", "FlexRay Decoder"],
+			["DSH9", "all options"]
+		]
+	},
+	{
+		"name": "DSA815",
+		"description": "",
+		"notes": "first character: A = official, S = trial",
+		"options": [
+			["AAAB", "Tracking Generator"],
+			["AAAC", "Advnced Measurement Kit"],
+			["AAAD", "10Hz RBW"],
+			["AAAE", "EMI/Quasi Peak"],
+			["AAAF", "VSWR"]
+		]
+	},
+    {
+		"name": "DG1000z",
+		"description": "",
+		"notes": "",
+        "options": [
+			["JBNE", "16M Memory"]
+        ]
+    }
+]

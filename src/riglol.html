@@ -1,0 +1,138 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><head>
+  <meta content="de-ch" http-equiv="Content-Language">
+  <meta content="text/html; charset=UTF-8" http-equiv="Content-Type">
+  <title>Riglol</title>
+  <script src="riglol.js" type="text/javascript"></script>
+  <script type="text/javascript">
+    function riglol()  
+    {
+      var l = "";
+      var s = document.getElementsByName("serial")[0].value;
+      var o = document.getElementsByName("options")[0].value;
+      var k = document.getElementsByName("privatekey")[0].value;
+      
+      if (o.length != 4) alert("ERROR: INVALID OPTIONS LENGTH!");
+      else if (k.length != 14) alert("ERROR: INVALID PRIVATE KEY LENGTH!");
+      else if (s.length < 13) alert("ERROR: INVALID SERIAL LENGTH!");
+      else {
+        generate = Module.cwrap('make_licence', 'string', ['string', 'string', 'string']);
+        l = generate(s, o, k);
+        prompt("MAKE SURE YOUR FIRMWARE IS UP TO DATE\nBEFORE APPLYING ANY KEYS!\n\n", l);
+      }
+    }
+
+    function update() {
+      var key = document.getElementsByName("privatekey")[0].value;
+      var s=document.getElementsByName("serial")[0].value;
+
+      select_private_key = Module.cwrap('select_priv_key', 'string', ['string']);
+      key = select_private_key(s);
+
+      if (key.length == 14) document.getElementsByName("privatekey")[0].value = key 
+    }
+    
+    function version() {
+      prog_version = Module.cwrap('get_version', 'string', []);
+      document.getElementsByTagName('t1')[0].innerHTML = prog_version();
+    }
+
+    Module.onRuntimeInitialized = version;
+
+	 var xmlhttp = new XMLHttpRequest();
+	 xmlhttp.onload = function() {
+		 var devices = JSON.parse(this.responseText);
+		 var mydiv = document.getElementById("options");
+		 mydiv.innerHTML = "";
+		 devices.forEach(function(dev, index) {
+				 mydiv.innerHTML += dev.name + " " + dev.description + "<br/>";
+				 if (dev.notes)
+					 mydiv.innerHTML += dev.notes + "<br/>";
+				 dev.options.forEach(function(opt, index) {
+						 mydiv.innerHTML += opt[0] + " - " + opt[1] + "<br/>";
+				 });
+				 mydiv.innerHTML += "<br/>";
+			});
+	 }
+	 xmlhttp.open("GET", "options.json", true);
+	 xmlhttp.send();
+  </script>
+  <style type="text/css">
+  .auto-style1 {
+	  font-size: xx-large;
+	  background-color: #FDE101;
+  }
+  </style>
+</head>
+
+<body>
+  <p><strong><span class="auto-style1">&nbsp;<t1>Riglol</t1>&nbsp;</span></strong>
+  <p>Old versions / sources / binaries available <a href="http://gotroot.ca/rigol/riglol-archives/">here</a>.</p>
+  </p><p>Serial:<br>
+  <input name="serial" value="D............." onchange="update()" style="width: 125px" type="text"><br>
+  <br>
+  Options:<br>
+  <input name="options" value="AAAA" style="width: 125px" type="text"><br>
+  <br>
+  Privatekey:<br>
+  <input name="privatekey" style="width: 125px" type="text"><br>
+  <br>
+  <input name="generate" onclick="riglol()" value="Generate" style="width: 125px" type="button"> 
+
+  <div id="options">
+  DP832 starting from v1.09 device options:<br />
+  first character: F = official, B = trial<br />
+  F3PT - Accuracy<br />
+  F6PT - Analyzer and Monitor<br />
+  F6LT - LAN<br />
+  FALT - RS232<br />
+  FLLT - Trigger<br />
+  <br />
+  <a href="http://gotroot.ca/rigol/riglol/firmware/DP832.zip">DP832</a> up to v1.06 device options:<br>
+  first character: M = official, 5 = trial<br>
+  MWSS - Trigger<br>
+  MWTB - Accuracy<br>
+  MWTC - LAN and RS232<br>
+  MWTE - Analyzer and Monitor<br>
+  <br>
+  DS1000z device options:<br>
+  DSAB - Advanced Triggers<br>
+  DSAC - Decoders<br>
+  DSAE - 24M Memory<br>
+  DSAJ - Recorder<br>
+  DSBA - 500uV Vertical <br>  
+  DSEA - 100MHz<br>  
+  DSFR - all options<br>
+  <br>
+  <a href="http://gotroot.ca/rigol/riglol/firmware/DS2000.zip">DS2000</a> device options:<br>
+  first character: D = official, V = trial<br>
+  DSAB - Advanced Triggers<br>
+  DSAC - I2C, SPI and RS232 Decoders<br>
+  DSEA - CAN Decoder<br>
+  DSAE - 56M Memory<br>
+  DSAJ - 100MHz<br>
+  DSAS - 200MHz<br>
+  DSCA - 300MHz<br>
+  DSHH - all options<br>
+  <br>
+  DS4000 device options:<br>
+  first character: D = official, V = trial<br>
+  DSHB - RS232 Decoder<br>
+  DSHC - SPI Decoder<br>
+  DSHE - I2C Decoder<br>
+  DSHJ - CAN Decoder<br>
+  DSHS - FlexRay Decoder<br>
+  DSH9 - all options<br>
+  <br>
+  DSA815 device options:<br>
+  first character: A = official, S = trial<br>
+  AAAB - Tracking Generator<br>
+  AAAC - Advnced Measurement Kit<br>
+  AAAD - 10Hz RBW<br>
+  AAAE - EMI/Quasi Peak<br>
+  AAAF - VSWR<br>
+  <br>
+  </div>
+
+
+</p></body></html>

@@ -1,0 +1,5 @@
+#define riglol_VERSION_MAJOR "@riglol_VERSION_MAJOR@"
+#define riglol_VERSION_MINOR "@riglol_VERSION_MINOR@"
+#define riglol_VERSION_PATCH "@riglol_VERSION_PATCH@"
+
+#define SYSTEM "@triple@"
