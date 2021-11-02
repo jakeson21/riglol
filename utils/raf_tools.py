@@ -6,6 +6,7 @@ import pdb
 import crcmod
 import pyvisa
 import time
+import math
 import json
 
 
@@ -35,28 +36,40 @@ def to_dac_values(values: np.ndarray, low_v: float, high_v: float):
     """ Range from 0, ..., 8192, ..., 16383
         Shift to max_neg [low_v], ..., 0, ..., max_pos [high_v]
     """
-    dac = remap(values, low_v, high_v, 0, 16383)
-    return dac.astype(np.uint16)
+    return remap(values, low_v, high_v, 0, 16383).astype(np.uint16)
 
 
 def from_dac_values(dac: np.ndarray, low_v: float, high_v: float):
     """ Range from max_neg [low_v], ..., 0, ..., max_pos [high_v]
         Shift to 0, ..., 8192, ..., 16383
     """
-    data = dac
-    data = remap(data, 0., 16383., low_v, high_v)
-    return data
+    return remap(dac, 0., 16383., low_v, high_v)
 
 
-def send_file_to_arb(path: str = 'square.raf', device=None):
-    data = read_raf(path, dac_values=True)
-    if data is not None:
-        send_data_to_arb(**data, device=device)
+def open_device(device):
+    # Can specify a resource index, string, or device handle
+    res = pyvisa.ResourceManager()
+    if isinstance(device, int):
+        device = res.open_resource(res.list_resources()[device])
+    elif isinstance(device, str):
+        device = res.open_resource(device)
+    elif isinstance(device, pyvisa.resources.usb.USBInstrument) or isinstance(device, pyvisa.resources.usb.USBInstrument):
+        print('Device handle already acquired')
+    else:
+        print('Unknown device type specified')
+        return False
+    return device, res
+
+
+def send_file_to_arb(path: str = 'square.raf', device=None, channel: int = 1):
+    dac = read_raf(path, dac_values=True)
+    if dac is not None:
+        send_data_to_arb(**dac, channel=channel, device=device)
     else:
         print('Failed to read in file\n')
 
 
-def send_data_to_arb(data: np.ndarray,
+def send_data_to_arb(samples: np.ndarray,
                      fs: float,
                      high_v: float = 1.0,
                      low_v: float = -1.0,
@@ -65,71 +78,68 @@ def send_data_to_arb(data: np.ndarray,
     if low_v >= high_v:
         print('low_v must be < high_v')
         return False
-    if data.dtype is not np.dtype('uint16'):
-        print('Converting data to uint16\n')
-        data = to_dac_values(data, low_v, high_v)
+    if samples.dtype is not np.dtype('uint16'):
+        print('Converting samples to uint16\n')
+        samples = to_dac_values(samples, low_v, high_v)
 
     # Can specify a resource index, string, or device handle
-    if isinstance(device, int):
-        rm = pyvisa.ResourceManager()
-        resources = rm.list_resources()
-        device = rm.open_resource(resources[0])
-        # arb = rm.open_resource('TCPIP::192.168.0.8::INSTR')
-    elif isinstance(device, str):
-        device = rm.open_resource(device)
-    elif isinstance(device, pyvisa.resources.usb.USBInstrument) or isinstance(device, pyvisa.resources.usb.USBInstrument):
-        print('Device handle already acquired')
-    else:
-        print('Unknown device type specified')
-        return False
-
+    device, rm = open_device(device=device)
     device.timeout = 2000
     device.write_termination = '\n'
 
-    print(device.query("*IDN?"))
-    print(device.query('*OPT?').rstrip())
+    print('Device:', device.query("*IDN?"))
+    print('16M Option:', device.query('*OPT?').rstrip())
     device.write(':SYSTem:BEEPer')
     print(device.query('*OPC?').rstrip())
     device.write(':OUTP{} OFF'.format(channel))
     device.write(':SOUR{}:FUNC:ARB:MODE SRATE'.format(channel))
 
-    block_size = int(16384/2)  # in uint16 samples
-    num_blocks = int(np.floor(len(data)/block_size))
+    print('Sending samples to Output', channel)
+    block_size = int(16384/2)  # in uint16 samples. Can send a max 16384 bytes per transfer.
+    num_blocks = int(np.floor(len(samples)/block_size))
     if num_blocks > 1:
         for b in range(1, num_blocks):
-            device.write_binary_values(':SOURCE{}:TRACE:DATA:DAC16 VOLATILE,CON,'.format(channel), data[b*block_size:(b+1)*block_size-1], datatype='H')
+            device.write_binary_values(':SOURCE{}:TRACE:DATA:DAC16 VOLATILE,CON,'.format(channel), samples[b*block_size:(b+1)*block_size-1], datatype='H')
             print(device.query('*OPC?').rstrip(), '{0:2.2f}'.format(b/num_blocks*100.))
-            # print('{0:2.2f}'.format(b/num_blocks*100.))
-        leftover = len(data) - num_blocks*block_size
-        device.write_binary_values(':SOURCE{}:TRACE:DATA:DAC16 VOLATILE,END,'.format(channel), data[-leftover:], datatype='H')
+        leftover = len(samples) - num_blocks*block_size
+        device.write_binary_values(':SOURCE{}:TRACE:DATA:DAC16 VOLATILE,END,'.format(channel), samples[-leftover:], datatype='H')
         print(device.query('*OPC?').rstrip(), 100.)
     else:
-        device.write_binary_values(':SOURCE{}:TRACE:DATA:DAC16 VOLATILE,END,'.format(channel), data[:block_size], datatype='H')
+        device.write_binary_values(':SOURCE{}:TRACE:DATA:DAC16 VOLATILE,END,'.format(channel), samples[:block_size], datatype='H')
         print(device.query('*OPC?').rstrip(), 100.)
     # Set the current directory.
     device.write(':SOUR{}:APPL:ARB {},{},{}'.format(channel, fs, high_v-low_v, (high_v+low_v)/2.))
-
-    # save_dir = "D:\\saved"
-    # device.write(':MMEM:CDIR "{}"'.format(save_dir))
-    # if device.query(':MMEMory:RDIRectory?').rstrip()[1] == '1':
-    #     print('USB D:\\ not detected')
-    #     device.close()
-    #     return
-
-    # Store the arbitrary waveform data of the specified channel into the current directory of the external
-    # memory in arbitrary waveform file form with the specified filename.
-    # save_name = '{}\\USR{}.RAF'.format(save_dir, channel)
-    # print('Saving the data to {}\n'.format(save_name))
-    # device.write(':MMEM:STOR:DATA{0} "USR{0}.RAF"'.format(channel))
     print(device.query('*OPC?').rstrip())
     device.write(':SYSTem:BEEPer')
     device.close()
+    print('Sent {} samples to device'.format(len(samples)))
     return True
 
 
-def crc16(data: bytearray, offset , length):
+def set_vpp(vpp: float, device):
+    device.write(':SOUR1:VOLT {}'.format(vpp))
+
+
+def get_vpp(device):
+    vpp = device.query(':SOUR1:VOLT?').rstrip()
+    return vpp
+
+
+def set_load(load: float, device, channel: int):
+    if math.isinf(load):
+        device.write(':OUTP{}:IMP INF'.format(channel))
+    else:
+        device.write(':OUTP{}:IMP {}'.format(channel, int(load)))
+
+
+def get_load(device, channel: int):
+    load = device.query(':OUTP1:IMP?').rstrip()
+    return load
+
+
+def crc16(b: bytearray):
     c = crcmod.mkCrcFun(0x11021, 0xEBCC, False, 0x0000)
-    return c(data)
+    return c(b)
 
 
 def read_raf(inp, dac_values: bool = False):
@@ -160,12 +170,13 @@ def read_raf(inp, dac_values: bool = False):
         fs /= 10**6
     else:  # period mode (frequency)
         fs = 10.**6/fs
-    print('{} read in with {} samples at {} Hz, high: {}, low: {}'.format(filename, len(x), fs, high_v, low_v))
+    print('Read in: {}\n{} samples\n{} Hz\nHigh: {} V, Low: {} V'.format(filename.rstrip(), len(x), fs, high_v, low_v))
     return {'data': x, 'fs': fs, 'high_v': high_v, 'low_v': low_v}
 
 
-def write_raf(filename: str, data: np.ndarray, fs_Hz: float, low_v: float, high_v: float):
-    data_u16 = (remap(data, low_v, high_v, -8191, 8191) + 8191).astype(np.uint16)
+def write_raf(filename: str, samples: np.ndarray, fs_Hz: float, low_v: float, high_v: float):
+    # data_u16 = (remap(samples, low_v, high_v, -8191, 8191) + 8191).astype(np.uint16)
+    data_u16 = to_dac_values(samples, low_v, high_v)
     crc_data = crc16(data_u16.tobytes(), 0, len(data_u16)*2)
     phead_fmt = '<L ? ? ? 25s q l l H'
     # Period Mode
@@ -214,8 +225,12 @@ if __name__ == '__main__':
     group = parser.add_mutually_exclusive_group()
     group.add_argument('-r', '--resource', type=int, help='resource index you wish to use')
     group.add_argument('-n', '--name', type=str, help='the resource name to use')
+    group.add_argument('-a', '--ip-address', type=str, help='IP address of the resource')
     parser.add_argument('-s', '--scan', action='store_true', help='scan and display available resources')
     parser.add_argument('-f', '--file', type=str, help='path to file to send to arb')
+    parser.add_argument('-c', '--channel', type=int, default=1, choices=[1, 2], help='Which channel to use')
+    parser.add_argument('-z', '--z-load', type=float, choices=[50, 75, 100, float('inf')], help='Set Load Impedance')
+    parser.add_argument('--vpp', type=float, help='Override the Vpp amplitude')
     parser.add_argument('--screenshot', type=str, help='filename to save screenshot to')
 
     args = parser.parse_args()
@@ -236,19 +251,35 @@ if __name__ == '__main__':
         elif args.name is not None:
             resource = args.name
             print('Using:', resource)
+        elif args.ip_address is not None:
+            resource = 'TCPIP::{}::INSTR'.format(args.ip_address)
+            print('Using:', resource)
         else:
             # sys.exit(test())
             pass
 
     if args.file is not None:
         if resource is not None:
-            send_file_to_arb(args.file, rm.open_resource(resource))
+            send_file_to_arb(args.file, channel=args.channel, device=resource)
         else:
             print('You must specify a resource to use')
             sys.exit(1)
 
+    if args.z_load is not None:
+        arb, r = open_device(resource)
+        set_load(args.z_load, arb, args.channel)
+        print('Load:', get_load(arb, args.channel))
+        arb.close()
+
+    # Set Vpp after setting load
+    if args.vpp is not None:
+        arb, r = open_device(resource)
+        set_vpp(args.vpp, arb)
+        print('Vpp:', get_vpp(arb))
+        arb.close()
+
     if args.screenshot and resource is not None:
-        arb = rm.open_resource(resource)
+        arb, r = open_device(resource)
         time.sleep(1.0)
         arb.query('*OPC?').rstrip()
         data = arb.query_binary_values(':DISP:DATA?', datatype='c')
