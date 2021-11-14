@@ -143,6 +143,12 @@ def crc16(b: bytearray):
 
 
 def read_raf(inp, dac_values: bool = False):
+    """
+    Takes a .raf file and converts to either DAC or real scaled values
+    :param inp: Input source, a file name or Bytes from a file
+    :param dac_values: boolean, True returns DAC values, False returns voltage values
+    :return: A dict with fields 'data', 'fs', 'high_v', 'low_v'
+    """
     if inp is None:
         return None
     elif isinstance(inp, str):
@@ -175,10 +181,19 @@ def read_raf(inp, dac_values: bool = False):
 
 
 def write_raf(filename: str, samples: np.ndarray, fs_Hz: float, low_v: float, high_v: float):
+    """
+    Takes an input array, converts and saves it to a .raf file. The sample values are mapped to low_v/high_v.
+    :param filename: file to write samples to
+    :param samples: source samples
+    :param fs_Hz: target sample rate for .raf file
+    :param low_v: most negative voltage output level
+    :param high_v: most positive voltage output level
+    :return: None
+    """
     # data_u16 = (remap(samples, low_v, high_v, -8191, 8191) + 8191).astype(np.uint16)
     data_u16 = to_dac_values(samples, low_v, high_v)
     crc_data = crc16(data_u16.tobytes(), 0, len(data_u16)*2)
-    phead_fmt = '<L ? ? ? 25s q l l H'
+    head = '<L ? ? ? 25s q l l H'
     # Period Mode
     # fs_mode = False
     # Fs = int(1./fs_Hz * 10**10)
@@ -193,7 +208,7 @@ def write_raf(filename: str, samples: np.ndarray, fs_Hz: float, low_v: float, hi
     fname = filename + '\x00'*(25-len(filename))
     high_v = int(high_v * 10**7)
     low_v = int(low_v * 10**7)
-    header = pack(phead_fmt, len(data_u16), True, False, fs_mode, fname.encode('utf-8'), fs, high_v, low_v, crc_data)
+    header = pack(head, len(data_u16), True, False, fs_mode, fname.encode('utf-8'), fs, high_v, low_v, crc_data)
     crc_head = crc16(header, 0, 50)
     header += pack('<Hl', crc_head, 0)
     bin_data = header + data_u16.tobytes()
