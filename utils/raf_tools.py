@@ -2,12 +2,10 @@ import argparse
 import sys
 import numpy as np
 from struct import *
-import pdb
 import crcmod
 import pyvisa
 import time
 import math
-import json
 
 
 def remap(x: np.ndarray, in_min, in_max, out_min, out_max):
