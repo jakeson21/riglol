@@ -6,6 +6,7 @@ import crcmod
 import pyvisa
 import time
 import math
+import pdb
 
 
 def remap(x: np.ndarray, in_min, in_max, out_min, out_max):
@@ -114,7 +115,7 @@ def send_data_to_arb(samples: np.ndarray,
     return True
 
 
-def set_vpp(vpp: float, device):
+def set_vpp(device, vpp: float):
     device.write(':SOUR1:VOLT {}'.format(vpp))
 
 
@@ -123,7 +124,7 @@ def get_vpp(device):
     return vpp
 
 
-def set_load(load: float, device, channel: int):
+def set_load(device, channel: int, load: float):
     if math.isinf(load):
         device.write(':OUTP{}:IMP INF'.format(channel))
     else:
@@ -133,6 +134,14 @@ def set_load(load: float, device, channel: int):
 def get_load(device, channel: int):
     load = device.query(':OUTP1:IMP?').rstrip()
     return load
+
+
+def set_output_state(device, channel=1, state=0):
+    device.write(':OUTP{} {}'.format(channel, state))
+
+
+def get_output_state(device, channel=1):
+    return device.write(':OUTP{}?'.format(channel))
 
 
 def crc16(b: bytearray):
@@ -145,7 +154,7 @@ def read_raf(inp, dac_values: bool = False):
     Takes a .raf file and converts to either DAC or real scaled values
     :param inp: Input source, a file name or Bytes from a file
     :param dac_values: boolean, True returns DAC values, False returns voltage values
-    :return: A dict with fields 'data', 'fs', 'high_v', 'low_v'
+    :return: A dict with fields 'samples', 'fs', 'high_v', 'low_v'
     """
     if inp is None:
         return None
@@ -175,10 +184,10 @@ def read_raf(inp, dac_values: bool = False):
     else:  # period mode (frequency)
         fs = 10.**6/fs
     print('Read in: {}\n{} samples\n{} Hz\nHigh: {} V, Low: {} V'.format(filename.rstrip(), len(x), fs, high_v, low_v))
-    return {'data': x, 'fs': fs, 'high_v': high_v, 'low_v': low_v}
+    return {'samples': x, 'fs': fs, 'high_v': high_v, 'low_v': low_v}
 
 
-def write_raf(filename: str, samples: np.ndarray, fs_Hz: float, low_v: float, high_v: float):
+def write_raf(filename: str, samples: np.ndarray, fs_Hz: float, low_v: float = -1.0, high_v: float = 1.0):
     """
     Takes an input array, converts and saves it to a .raf file. The sample values are mapped to low_v/high_v.
     :param filename: file to write samples to
@@ -190,7 +199,7 @@ def write_raf(filename: str, samples: np.ndarray, fs_Hz: float, low_v: float, hi
     """
     # data_u16 = (remap(samples, low_v, high_v, -8191, 8191) + 8191).astype(np.uint16)
     data_u16 = to_dac_values(samples, low_v, high_v)
-    crc_data = crc16(data_u16.tobytes(), 0, len(data_u16)*2)
+    crc_data = crc16(data_u16.tobytes())  # , 0, len(data_u16)*2)
     head = '<L ? ? ? 25s q l l H'
     # Period Mode
     # fs_mode = False
@@ -207,7 +216,7 @@ def write_raf(filename: str, samples: np.ndarray, fs_Hz: float, low_v: float, hi
     high_v = int(high_v * 10**7)
     low_v = int(low_v * 10**7)
     header = pack(head, len(data_u16), True, False, fs_mode, fname.encode('utf-8'), fs, high_v, low_v, crc_data)
-    crc_head = crc16(header, 0, 50)
+    crc_head = crc16(header)  #, 0, 50)
     header += pack('<Hl', crc_head, 0)
     bin_data = header + data_u16.tobytes()
     f = open(filename, 'wb')
@@ -240,8 +249,9 @@ if __name__ == '__main__':
     group.add_argument('-n', '--name', type=str, help='the resource name to use')
     group.add_argument('-a', '--ip-address', type=str, help='IP address of the resource')
     parser.add_argument('-s', '--scan', action='store_true', help='scan and display available resources')
-    parser.add_argument('-f', '--file', type=str, help='path to file to send to arb')
+    parser.add_argument('-f', '--file', type=str, help='path to .raf file to send to arb')
     parser.add_argument('-c', '--channel', type=int, default=1, choices=[1, 2], help='Which channel to use')
+    parser.add_argument('-o', '--output-state', type=int, default=0, choices=[1, 0], help='Set output state ON or OFF')
     parser.add_argument('-z', '--z-load', type=float, choices=[50, 75, 100, float('inf')], help='Set Load Impedance')
     parser.add_argument('--vpp', type=float, help='Override the Vpp amplitude')
     parser.add_argument('--screenshot', type=str, help='filename to save screenshot to')
@@ -280,15 +290,21 @@ if __name__ == '__main__':
 
     if args.z_load is not None:
         arb, r = open_device(resource)
-        set_load(args.z_load, arb, args.channel)
+        set_load(arb, args.channel, args.z_load)
         print('Load:', get_load(arb, args.channel))
         arb.close()
 
     # Set Vpp after setting load
     if args.vpp is not None:
         arb, r = open_device(resource)
-        set_vpp(args.vpp, arb)
+        set_vpp(arb, args.vpp)
         print('Vpp:', get_vpp(arb))
+        arb.close()
+
+    if args.output_state is not None:
+        arb, r = open_device(resource)
+        set_output_state(arb, args.channel, int(args.output_state))
+        print('Output State:', get_output_state(arb, args.channel))
         arb.close()
 
     if args.screenshot and resource is not None:
