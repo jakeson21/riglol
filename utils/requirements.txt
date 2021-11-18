@@ -1,3 +1,0 @@
-crcmod==1.7
-numpy==1.21.2
-PyVISA==1.11.3
